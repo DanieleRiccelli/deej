@@ -42,6 +42,7 @@ const (
 	deviceSessionFormat = "device.%s"
 )
 
+
 func newSessionFinder(logger *zap.SugaredLogger) (SessionFinder, error) {
 	sf := &wcaSessionFinder{
 		logger:        logger.Named("session_finder"),
@@ -367,7 +368,7 @@ func (sf *wcaSessionFinder) enumerateAndAddSessions(sessions *[]Session) error {
 		// add it to our slice
 		*sessions = append(*sessions, newSession)
 	}
-
+	
 	return nil
 }
 
@@ -538,4 +539,59 @@ func (sf *wcaSessionFinder) defaultDeviceChangedCallback(
 }
 func (sf *wcaSessionFinder) noopCallback() (hResult uintptr) {
 	return
+}
+
+
+func (sf *wcaSessionFinder) GetActiveDevices() ([]DeviceInfo, error) {
+    var activeOutputDevices []DeviceInfo
+
+    // Ottieni la lista dei dispositivi attivi
+    var deviceCollection *wca.IMMDeviceCollection
+    if err := sf.mmDeviceEnumerator.EnumAudioEndpoints(wca.ERender, wca.DEVICE_STATE_ACTIVE, &deviceCollection); err != nil {
+        return nil, fmt.Errorf("enumerate active audio endpoints: %w", err)
+    }
+    defer deviceCollection.Release()
+
+    // Ottieni il conteggio dei dispositivi
+    var deviceCount uint32
+    if err := deviceCollection.GetCount(&deviceCount); err != nil {
+        return nil, fmt.Errorf("get device count: %w", err)
+    }
+
+    // Itera sui dispositivi attivi
+    for deviceIdx := uint32(0); deviceIdx < deviceCount; deviceIdx++ {
+        // Recupera il dispositivo
+        var endpoint *wca.IMMDevice
+        if err := deviceCollection.Item(deviceIdx, &endpoint); err != nil {
+            continue
+        }
+        defer endpoint.Release()
+
+        // Ottieni il property store del dispositivo
+        var propertyStore *wca.IPropertyStore
+        if err := endpoint.OpenPropertyStore(wca.STGM_READ, &propertyStore); err != nil {
+            continue
+        }
+        defer propertyStore.Release()
+
+        // Recupera il friendly name del dispositivo
+        friendlyName := &wca.PROPVARIANT{}
+        if err := propertyStore.GetValue(&wca.PKEY_Device_FriendlyName, friendlyName); err != nil {
+            continue
+        }
+
+        // Recupera l'ID del dispositivo dalle proprietà
+        deviceID := &wca.PROPVARIANT{}
+        if err := propertyStore.GetValue(&wca.PKEY_Device_DeviceDesc, deviceID); err != nil {
+            continue
+        }
+
+        deviceInfo := DeviceInfo{
+            Name: friendlyName.String(),
+            ID:   deviceID.String(),
+        }
+        activeOutputDevices = append(activeOutputDevices, deviceInfo)
+    }
+
+    return activeOutputDevices, nil
 }
