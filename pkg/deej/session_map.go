@@ -270,15 +270,6 @@ func (m *sessionMap) handleSliderMoveEvent(event SliderMoveEvent) {
 		// (or another, more catastrophic failure happens)
 		m.refreshSessions(true)
 	}
-
-	activeDevices, err := m.sessionFinder.GetActiveDevices()
-	if err != nil {
-		// Gestisci l'errore
-		m.logger.Warnw("Errore durante il recupero dei dispositivi attivi", "error", err)
-		return
-	}
-
-	m.logger.Infow("Active devices", "devices", activeDevices)
 }
 
 func (m *sessionMap) targetHasSpecialTransform(target string) bool {
